@@ -1,22 +1,38 @@
 #include <Adafruit_NeoPixel.h>
 #include <Ticker.h>
-#include <WiFi.h>
-#include <Ambient.h>
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLEUtils.h>
+#include <BLE2902.h>
 
 #define PIN            25 // GPIO
 #define G35            35
 #define NUMPIXELS      59
 
-#define WIFI_SSID "********"
-#define WIFI_PASSWORD "********"
+BLECharacteristic *pCharacteristic;
+bool deviceConnected = false;
+uint8_t value = 0;
+
+// See the following for generating UUIDs:
+// https://www.uuidgenerator.net/
+
+// Version 4 UUID
+#define SERVICE_UUID        "********"
+#define CHARACTERISTIC_UUID "********"
+
+class MyServerCallbacks: public BLEServerCallbacks {
+    void onConnect(BLEServer* pServer) {
+      deviceConnected = true;
+    };
+
+    void onDisconnect(BLEServer* pServer) {
+      deviceConnected = false;
+    }
+};
+
 
 Adafruit_NeoPixel pixels = Adafruit_NeoPixel(NUMPIXELS, PIN, NEO_GRB + NEO_KHZ800);
 Ticker ticker;
-Ambient ambient;
-WiFiClient client;
-
-unsigned int channelId = "****"; // AmbientのチャネルID
-const char* writeKey = "****************"; // Ambientライトキー
 
 int delayval = 50;
 int val = 0;
@@ -26,16 +42,35 @@ int punchCounter = 0;
 void setup() {
   pinMode(PIN, OUTPUT);
   Serial.begin(115200);
+  // Create the BLE Device
+  BLEDevice::init("knockmitten");
 
-  // WiFi接続
-  WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-  Serial.print("connecting");
-  while (WiFi.status() != WL_CONNECTED) {
-    Serial.print(".");
-    delay(500);
-  }
+  // Create the BLE Server
+  BLEServer *pServer = BLEDevice::createServer();
+  pServer->setCallbacks(new MyServerCallbacks());
 
-  ambient.begin(channelId, writeKey, &client);
+  // Create the BLE Service
+  BLEService *pService = pServer->createService(SERVICE_UUID);
+
+  // Create a BLE Characteristic
+  pCharacteristic = pService->createCharacteristic(
+                      CHARACTERISTIC_UUID,
+                      BLECharacteristic::PROPERTY_READ   |
+                      BLECharacteristic::PROPERTY_WRITE  |
+                      BLECharacteristic::PROPERTY_NOTIFY |
+                      BLECharacteristic::PROPERTY_INDICATE
+                    );
+
+  // https://www.bluetooth.com/specifications/gatt/viewer?attributeXmlFile=org.bluetooth.descriptor.gatt.client_characteristic_configuration.xml
+  // Create a BLE Descriptor
+  pCharacteristic->addDescriptor(new BLE2902());
+
+  // Start the service
+  pService->start();
+
+  // Start advertising
+  pServer->getAdvertising()->start();
+  Serial.println("Waiting a client connection to notify...");
 
   // This initializes the NeoPixel library.
   pixels.begin();
@@ -84,47 +119,32 @@ void loop(){
     Serial.println("count!!!");
     punchCounter = punchCounter + 1;
     Serial.println(punchCounter);
-    ambient.set(1, String(val).c_str());
-    ambient.send();
+    if (deviceConnected) {
+      char buffer[32];
+      sprintf(buffer, "{\"pulse\":%d,\"counter\":%d}", val, punchCounter);
+      Serial.printf(buffer);
+      pCharacteristic->setValue(buffer);
+      pCharacteristic->notify();
+      //pCharacteristic->indicate();
+      delay(100);
+    }
   }
 
   if (punchCounter >= 10 && punchCounter < 20) {
-    for (int i = 1; i <= 10; i++){
-      pixels.setPixelColor(i, pixels.Color(255, 1, 1));
+    for(int i = 0; i < NUMPIXELS; i++) {
+      pixels.setPixelColor(i, pixels.Color(130, 1, 200));
+      pixels.show();
     }
-    pixels.show();
   }
 
   if (punchCounter >= 20 & punchCounter < 30) {
-    for (int i = 11; i <= 20; i++){
-      pixels.setPixelColor(i, pixels.Color(255, 1, 1));
+    for(int i = 0; i < NUMPIXELS; i++) {
+      pixels.setPixelColor(i, pixels.Color(200, 1, 200));
+      pixels.show();
     }
-    pixels.show();
   }
 
-  if (punchCounter >= 30 & punchCounter < 40) {
-    for (int i = 21; i <= 30; i++){
-      pixels.setPixelColor(i, pixels.Color(255, 1, 1));
-    }
-    pixels.show();
-  }
-
-  if (punchCounter >= 40 & punchCounter < 50) {
-    for (int i = 31; i <= 40; i++){
-      pixels.setPixelColor(i, pixels.Color(255, 1, 1));
-    }
-    pixels.show();
-  }
-
-
-  if (punchCounter >= 50 & punchCounter <= 60) {
-    for (int i = 41; i <= 50; i++){
-      pixels.setPixelColor(i, pixels.Color(255, 1, 1));
-    }
-    pixels.show();
-  }
-
-  if (punchCounter > 60) {
+  if (punchCounter > 30) {
     finish();
   }
 }
