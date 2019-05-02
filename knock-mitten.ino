@@ -15,10 +15,10 @@ uint8_t value = 0;
 
 // See the following for generating UUIDs:
 // https://www.uuidgenerator.net/
-
+//
 // Version 4 UUID
-#define SERVICE_UUID        "********"
-#define CHARACTERISTIC_UUID "********"
+#define SERVICE_UUID        "f6740539-e7ee-47bc-926b-adfa5150e1a2"
+#define CHARACTERISTIC_UUID "3d7c94ca-0522-4287-94a7-8913e7e63beb"
 
 class MyServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) {
@@ -125,26 +125,32 @@ void loop(){
       Serial.printf(buffer);
       pCharacteristic->setValue(buffer);
       pCharacteristic->notify();
-      //pCharacteristic->indicate();
       delay(100);
     }
   }
 
-  if (punchCounter >= 10 && punchCounter < 20) {
+  if (punchCounter == 5) {
+    for(int i = 0; i < NUMPIXELS; i++) {
+      pixels.setPixelColor(i, pixels.Color(65, 1, 200));
+      pixels.show();
+    }
+  }
+
+  if (punchCounter == 10) {
     for(int i = 0; i < NUMPIXELS; i++) {
       pixels.setPixelColor(i, pixels.Color(130, 1, 200));
       pixels.show();
     }
   }
 
-  if (punchCounter >= 20 & punchCounter < 30) {
+  if (punchCounter == 15 ) {
     for(int i = 0; i < NUMPIXELS; i++) {
       pixels.setPixelColor(i, pixels.Color(200, 1, 200));
       pixels.show();
     }
   }
 
-  if (punchCounter > 30) {
+  if (punchCounter == 20) {
     finish();
   }
 }
